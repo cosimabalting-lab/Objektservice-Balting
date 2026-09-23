@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#173d32">
+<title>Objektservice Balting – Auftragsmanager</title>
+<link rel="manifest" href="manifest.json">
+<style>
+:root{--green:#173d32;--green2:#245646;--mint:#eaf2ed;--cream:#f7f8f5;--ink:#1d2924;--muted:#68756e;--line:#dce4de;--orange:#e9a23b;--red:#b84b42}
+*{box-sizing:border-box}body{margin:0;background:var(--cream);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{background:var(--green);color:white;padding:22px 18px 18px;position:sticky;top:0;z-index:3;box-shadow:0 3px 14px #10291f22}
+.head{max-width:1050px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:12px}h1{font-size:20px;margin:0;font-weight:750;letter-spacing:-.3px}.sub{font-size:12px;opacity:.75;margin-top:3px}
+main{max-width:1050px;margin:auto;padding:18px 14px 100px}.nav{display:flex;gap:7px;overflow:auto;margin-bottom:18px;padding-bottom:4px}.nav button{white-space:nowrap;border:1px solid var(--line);background:white;color:var(--green);border-radius:999px;padding:10px 15px;font-weight:650}.nav button.active{background:var(--green);color:white;border-color:var(--green)}
+button,.btn{cursor:pointer;font:inherit}.primary{background:var(--green);color:white;border:0;border-radius:11px;padding:11px 15px;font-weight:700}.secondary{background:white;border:1px solid var(--line);color:var(--green);border-radius:10px;padding:9px 12px;font-weight:650}.danger{color:var(--red);border-color:#e8c7c3}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin-bottom:18px}.kpi,.panel,.item{background:white;border:1px solid var(--line);border-radius:15px;padding:15px}.kpi small{display:block;color:var(--muted);font-size:12px}.kpi strong{display:block;font-size:23px;margin-top:5px;color:var(--green)}.section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:20px 0 10px}.section-title h2{font-size:17px;margin:0}.list{display:grid;gap:10px}.item-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.item h3{margin:0;font-size:16px}.muted{color:var(--muted);font-size:13px}.tag{display:inline-block;border-radius:999px;padding:4px 9px;background:var(--mint);color:var(--green);font-size:11px;font-weight:750}.item p{margin:7px 0}.item-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.item-actions button{font-size:12px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}label{font-size:12px;color:var(--muted);font-weight:700}input,select,textarea{font:inherit;border:1px solid #cfd9d1;border-radius:9px;padding:11px;background:white;width:100%;color:var(--ink)}textarea{min-height:82px;resize:vertical}.form-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:15px}.empty{padding:24px;text-align:center;color:var(--muted);background:white;border:1px dashed var(--line);border-radius:12px}.toolbar{display:flex;gap:9px;flex-wrap:wrap}.toolbar input{max-width:330px}.hidden{display:none!important}.notice{background:#fff6df;border:1px solid #f0d99d;border-radius:12px;padding:12px;font-size:13px;margin:12px 0}.bottom-add{position:fixed;bottom:18px;right:18px;background:var(--orange);color:#2c2415;border:0;border-radius:999px;padding:14px 19px;font-weight:800;box-shadow:0 5px 18px #0002;z-index:4}.metricrow{display:flex;gap:15px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:9px}.metricrow b{color:var(--ink)}.smallnote{font-size:12px;color:var(--muted);line-height:1.5}
+@media(max-width:650px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.formgrid{grid-template-columns:1fr}.field.full{grid-column:auto}.kpi strong{font-size:21px}main{padding:14px 12px 100px}.head{align-items:flex-start}}
+</style>
+</head>
+<body>
+<header><div class="head"><div><h1>Objektservice Balting</h1><div class="sub">Auftragsmanager · lokal auf diesem Gerät</div></div><span style="font-size:25px">⌂</span></div></header>
+<main>
+<div class="nav" id="nav">
+<button class="active" data-view="dashboard">Übersicht</button><button data-view="orders">Aufträge</button><button data-view="customers">Kunden</button><button data-view="data">Daten & Backup</button>
+</div>
+<section id="dashboard"></section>
+<section id="orders" class="hidden"></section>
+<section id="customers" class="hidden"></section>
+<section id="data" class="hidden"></section>
+</main>
+<button class="bottom-add" id="quickAdd">＋ Auftrag</button>
+<script>
+const $=s=>document.querySelector(s);
+const money=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Number(n)||0);
+const today=()=>new Date().toISOString().slice(0,10);
+const statuses=['Interessent','Besichtigung','Angebot','Beauftragt','Erledigt','Rechnung','Bezahlt'];
+let db=load();
+function load(){try{return JSON.parse(localStorage.getItem('baltingDB'))||{customers:[],orders:[],nextC:1,nextO:1}}catch(e){return {customers:[],orders:[],nextC:1,nextO:1}}}
+function save(){localStorage.setItem('baltingDB',JSON.stringify(db));render()}
+function id(prefix,n){return `BAL-${prefix}-${new Date().getFullYear()}-${String(n).padStart(4,'0')}`}
+function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function customerName(cid){return db.customers.find(c=>c.id===cid)?.name||'Kunde nicht gefunden'}
+function nav(view){document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));['dashboard','orders','customers','data'].forEach(v=>$('#'+v).classList.toggle('hidden',v!==view));$('#quickAdd').classList.toggle('hidden',view==='data');render()}
+$('#nav').addEventListener('click',e=>{let b=e.target.closest('button[data-view]');if(b)nav(b.dataset.view)});
+$('#quickAdd').onclick=()=>orderForm();
+function cardOrder(o){let profit=(Number(o.revenue)||0)-(Number(o.actualMaterial)||0)-(Number(o.actualDisposal)||0)-(Number(o.actualTravel)||0);let hasActual=o.actualHours!==''&&o.actualHours!=null;
+return `<article class="item"><div class="item-top"><div><h3>${esc(o.title||o.service||'Auftrag')}</h3><div class="muted">${esc(o.id)} · ${esc(customerName(o.customerId))}</div></div><span class="tag">${esc(o.status)}</span></div><p>${esc(o.date||'Termin offen')} ${o.service?'· '+esc(o.service):''}</p><div class="metricrow"><span>Umsatz <b>${money(o.revenue)}</b></span><span>Planzeit <b>${o.plannedHours||0} Std.</b></span>${hasActual?`<span>Ist-Gewinn <b>${money(profit)}</b></span>`:''}</div><div class="item-actions"><button class="secondary" onclick="editOrder('${o.id}')">Bearbeiten</button><button class="secondary" onclick="actualForm('${o.id}')">Ist-Kosten</button><button class="secondary" onclick="nextStatus('${o.id}')">Status weiter</button><button class="secondary danger" onclick="deleteOrder('${o.id}')">Löschen</button></div></article>`}
+function renderDashboard(){
+let open=db.orders.filter(o=>!['Bezahlt'].includes(o.status)).length, quotes=db.orders.filter(o=>o.status==='Angebot').length;
+let contracted=db.orders.filter(o=>['Beauftragt','Erledigt','Rechnung','Bezahlt'].includes(o.status)).reduce((s,o)=>s+(+o.revenue||0),0);
+let profit=db.orders.filter(o=>o.actualHours!==''&&o.actualHours!=null).reduce((s,o)=>s+(+o.revenue||0)-(+o.actualMaterial||0)-(+o.actualDisposal||0)-(+o.actualTravel||0),0);
+let upcoming=db.orders.filter(o=>o.date&&o.date>=today()&&o.status!=='Bezahlt').sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+$('#dashboard').innerHTML=`<div class="grid"><div class="kpi"><small>Offene Aufträge</small><strong>${open}</strong></div><div class="kpi"><small>Angebote</small><strong>${quotes}</strong></div><div class="kpi"><small>Beauftragt (Umsatz)</small><strong>${money(contracted)}</strong></div><div class="kpi"><small>Erfasster Ist-Gewinn</small><strong>${money(profit)}</strong></div></div>
+<div class="section-title"><h2>Anstehende Termine</h2><button class="secondary" onclick="nav('orders')">Alle Aufträge</button></div>
+<div class="list">${upcoming.length?upcoming.map(cardOrder).join(''):'<div class="empty">Noch keine anstehenden Termine. Lege deinen ersten Auftrag an.</div>'}</div>
+<div class="notice"><b>Wichtig:</b> Deine Daten werden aktuell nur in diesem Browser auf diesem Gerät gespeichert. Bitte regelmäßig unter „Daten & Backup“ sichern. Noch keine direkte Lexware-Synchronisierung.</div>`;
+}
+function orderForm(orderId=null){
+let o=orderId?db.orders.find(x=>x.id===orderId):{};
+let customerOptions=db.customers.map(c=>`<option value="${c.id}" ${o.customerId===c.id?'selected':''}>${esc(c.name)} (${c.id})</option>`).join('');
+$('#orders').classList.remove('hidden');$('#dashboard').classList.add('hidden');$('#customers').classList.add('hidden');$('#data').classList.add('hidden');
+$('#orders').innerHTML=`<div class="section-title"><h2>${orderId?'Auftrag bearbeiten':'Neuer Auftrag'}</h2><button class="secondary" onclick="nav('orders')">Zurück</button></div>
+${!db.customers.length?'<div class="notice">Lege zuerst einen Kunden an, damit du ihn dem Auftrag zuordnen kannst.</div>':''}
+<form class="panel" id="orderForm"><div class="formgrid">
+<div class="field"><label>Kunde</label><select name="customerId" required><option value="">Kunde auswählen…</option>${customerOptions}</select></div>
+<div class="field"><label>Status</label><select name="status">${statuses.map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+<div class="field"><label>Auftragstitel</label><input name="title" required value="${esc(o.title||'')}" placeholder="z. B. Hecke schneiden"></div>
+<div class="field"><label>Leistung</label><select name="service">${['Gebäudereinigung','Grünpflege','Instandhaltung','Objektbetreuung','Heckenschnitt','Sonstiges'].map(s=>`<option ${o.service===s?'selected':''}>${s}</option>`).join('')}</select></div>
+<div class="field"><label>Termin</label><input type="date" name="date" value="${esc(o.date||'')}"></div>
+<div class="field"><label>Geplante Stunden</label><input type="number" min="0" step=".25" name="plannedHours" value="${esc(o.plannedHours??'')}"></div>
+<div class="field"><label>Angebots-/Auftragswert (€)</label><input type="number" min="0" step=".01" name="revenue" value="${esc(o.revenue??'')}"></div>
+<div class="field"><label>Geplantes Material (€)</label><input type="number" min="0" step=".01" name="plannedMaterial" value="${esc(o.plannedMaterial??'')}"></div>
+<div class="field"><label>Geplante Entsorgung (€)</label><input type="number" min="0" step=".01" name="plannedDisposal" value="${esc(o.plannedDisposal??'')}"></div>
+<div class="field"><label>Geplante Fahrtkosten (€)</label><input type="number" min="0" step=".01" name="plannedTravel" value="${esc(o.plannedTravel??'')}"></div>
+<div class="field full"><label>Beschreibung / Notizen</label><textarea name="notes">${esc(o.notes||'')}</textarea></div>
+<div class="field"><label>Lexware Angebotsnummer (später)</label><input name="lexwareQuotationNumber" value="${esc(o.lexwareQuotationNumber||'')}"></div>
+<div class="field"><label>Lexware Rechnungsnummer (später)</label><input name="lexwareInvoiceNumber" value="${esc(o.lexwareInvoiceNumber||'')}"></div>
+</div><div class="form-actions"><button class="primary">${orderId?'Änderungen speichern':'Auftrag speichern'}</button><button type="button" class="secondary" onclick="nav('orders')">Abbrechen</button></div><p class="smallnote">Interne Auftragsnummer: ${esc(o.id||'wird automatisch vergeben')}</p></form>`;
+$('#orderForm').onsubmit=e=>{e.preventDefault();let f=new FormData(e.target),obj=Object.fromEntries(f.entries());if(!obj.customerId){alert('Bitte Kunden auswählen.');return}
+if(orderId){Object.assign(o,obj)}else{obj.id=id('A',db.nextO++);obj.createdAt=new Date().toISOString();obj.actualHours='';obj.actualMaterial='';obj.actualDisposal='';obj.actualTravel='';obj.lexwareQuotationId='';obj.lexwareInvoiceId='';db.orders.unshift(obj)}
+save();nav('orders')};
+}
+function editOrder(id){orderForm(id)}
+function renderOrders(){
+$('#orders').innerHTML=`<div class="section-title"><h2>Aufträge</h2><button class="primary" onclick="orderForm()">＋ Auftrag</button></div><div class="toolbar"><input id="orderSearch" placeholder="Auftrag oder Kunde suchen…"><select id="statusFilter"><option value="">Alle Status</option>${statuses.map(s=>`<option>${s}</option>`).join('')}</select></div><div class="list" id="orderList" style="margin-top:12px"></div>`;
+function filter(){let q=$('#orderSearch').value.toLowerCase(),st=$('#statusFilter').value;let arr=db.orders.filter(o=>(!st||o.status===st)&&(`${o.title} ${o.id} ${customerName(o.customerId)}`).toLowerCase().includes(q));$('#orderList').innerHTML=arr.length?arr.map(cardOrder).join(''):'<div class="empty">Keine passenden Aufträge gefunden.</div>'}
+$('#orderSearch').oninput=filter;$('#statusFilter').onchange=filter;filter();
+}
+function nextStatus(id){let o=db.orders.find(x=>x.id===id);o.status=statuses[Math.min(statuses.indexOf(o.status)+1,statuses.length-1)];save()}
+function deleteOrder(id){if(confirm('Auftrag wirklich löschen?')){db.orders=db.orders.filter(o=>o.id!==id);save()}}
+function actualForm(id){let o=db.orders.find(x=>x.id===id);let vals=[['actualHours','Tatsächliche Stunden','number'],['actualMaterial','Materialkosten tatsächlich (€)','number'],['actualDisposal','Entsorgung tatsächlich (€)','number'],['actualTravel','Fahrtkosten tatsächlich (€)','number']];
+let body=vals.map(([n,l,t])=>`<div class="field"><label>${l}</label><input id="act_${n}" type="${t}" min="0" step=".25" value="${esc(o[n]??'')}"></div>`).join('');
+$('#orders').insertAdjacentHTML('afterbegin',`<div class="panel" id="actualPanel"><div class="section-title"><h2>Ist-Werte · ${esc(o.id)}</h2></div><div class="formgrid">${body}</div><div class="form-actions"><button class="primary" onclick="saveActual('${o.id}')">Ist-Werte speichern</button><button class="secondary" onclick="$('#actualPanel').remove()">Abbrechen</button></div></div>`)}
+function saveActual(id){let o=db.orders.find(x=>x.id===id);['actualHours','actualMaterial','actualDisposal','actualTravel'].forEach(n=>o[n]=$('#act_'+n).value);save()}
+function renderCustomers(){
+$('#customers').innerHTML=`<div class="section-title"><h2>Kunden</h2><button class="primary" onclick="customerForm()">＋ Kunde</button></div><div class="list">${db.customers.length?db.customers.map(c=>`<article class="item"><div class="item-top"><div><h3>${esc(c.name)}</h3><div class="muted">${esc(c.id)}</div></div><span class="tag">${db.orders.filter(o=>o.customerId===c.id).length} Aufträge</span></div><p class="muted">${esc([c.street,c.zip,c.city].filter(Boolean).join(', '))}</p><p>${esc(c.phone||'')} ${c.email?'· '+esc(c.email):''}</p><p class="smallnote">Lexware Kontakt-ID: ${esc(c.lexwareContactId||'noch nicht verknüpft')}</p><div class="item-actions"><button class="secondary" onclick="customerForm('${c.id}')">Bearbeiten</button><button class="secondary danger" onclick="deleteCustomer('${c.id}')">Löschen</button></div></article>`).join(''):'<div class="empty">Noch keine Kunden angelegt.</div>'}</div>`;
+}
+function customerForm(cid=null){let c=cid?db.customers.find(x=>x.id===cid):{};$('#customers').innerHTML=`<div class="section-title"><h2>${cid?'Kunde bearbeiten':'Neuer Kunde'}</h2><button class="secondary" onclick="nav('customers')">Zurück</button></div><form class="panel" id="customerForm"><div class="formgrid">
+<div class="field full"><label>Name / Firma</label><input name="name" required value="${esc(c.name||'')}"></div><div class="field"><label>Telefon</label><input name="phone" value="${esc(c.phone||'')}"></div><div class="field"><label>E-Mail</label><input type="email" name="email" value="${esc(c.email||'')}"></div>
+<div class="field full"><label>Straße, Hausnummer</label><input name="street" value="${esc(c.street||'')}"></div><div class="field"><label>PLZ</label><input name="zip" value="${esc(c.zip||'')}"></div><div class="field"><label>Ort</label><input name="city" value="${esc(c.city||'')}"></div><div class="field full"><label>Lexware Kontakt-ID (für spätere API-Verknüpfung)</label><input name="lexwareContactId" value="${esc(c.lexwareContactId||'')}"></div></div><div class="form-actions"><button class="primary">Kunde speichern</button><button type="button" class="secondary" onclick="nav('customers')">Abbrechen</button></div><p class="smallnote">Interne Kundennummer: ${esc(c.id||'wird automatisch vergeben')}</p></form>`;
+$('#customerForm').onsubmit=e=>{e.preventDefault();let obj=Object.fromEntries(new FormData(e.target).entries());if(cid)Object.assign(c,obj);else{obj.id=id('K',db.nextC++);db.customers.unshift(obj)}save();nav('customers')}}
+function deleteCustomer(id){if(db.orders.some(o=>o.customerId===id)){alert('Dieser Kunde hat Aufträge. Lösche oder ordne diese zuerst um.');return}if(confirm('Kunden wirklich löschen?')){db.customers=db.customers.filter(c=>c.id!==id);save()}}
+function renderData(){$('#data').innerHTML=`<div class="section-title"><h2>Daten & Backup</h2></div><div class="panel"><h3>Datensicherung</h3><p class="muted">Exportiere regelmäßig alle Kunden und Aufträge als JSON-Datei. Bewahre die Datei sicher auf.</p><button class="primary" onclick="exportData()">Backup herunterladen</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"><label>Backup wiederherstellen (JSON)</label><input type="file" id="importFile" accept=".json,application/json"><button class="secondary" style="margin-top:9px" onclick="importData()">Backup importieren</button></div>
+<div class="panel" style="margin-top:12px"><h3>Dein Datenbestand</h3><p>${db.customers.length} Kunden · ${db.orders.length} Aufträge</p><p class="smallnote">Die App speichert Daten im lokalen Browser-Speicher. Sie synchronisiert nicht automatisch zwischen Geräten und ist kein Ersatz für Lexware als Buchhaltungs-/Rechnungssystem. Lege keine besonders sensiblen Daten ab.</p><div class="form-actions"><button class="secondary danger" onclick="clearData()">Alle lokalen Daten löschen</button></div></div>
+<div class="panel" style="margin-top:12px"><h3>Lexware-Verknüpfung</h3><p class="smallnote">Diese MVP-Version erstellt noch keine Angebote oder Rechnungen in Lexware. Die Felder für Lexware-Kontakt-ID, Angebotsnummer und Rechnungsnummer sind vorbereitet. Für eine direkte API-Anbindung benötigst du einen passenden Lexware-Tarif mit API-Zugang und anschließend eine sichere Server-Verbindung.</p></div>`}
+function exportData(){let blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='objektservice-balting-backup-'+today()+'.json';a.click();URL.revokeObjectURL(a.href)}
+function importData(){let f=$('#importFile').files[0];if(!f){alert('Bitte zuerst eine JSON-Datei auswählen.');return}let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!Array.isArray(x.customers)||!Array.isArray(x.orders))throw 0;if(confirm('Import ersetzt die aktuell gespeicherten Daten. Fortfahren?')){db=x;save();nav('dashboard')}}catch(e){alert('Die Datei ist kein gültiges Balting-Backup.')}};r.readAsText(f)}
+function clearData(){if(confirm('Wirklich alle Kunden und Aufträge von diesem Gerät löschen? Diese Aktion kann nicht rückgängig gemacht werden.')){db={customers:[],orders:[],nextC:1,nextO:1};save()}}
+function render(){renderDashboard();if(!$('#orders').classList.contains('hidden'))renderOrders();if(!$('#customers').classList.contains('hidden'))renderCustomers();if(!$('#data').classList.contains('hidden'))renderData()}
+render();
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body></html>
